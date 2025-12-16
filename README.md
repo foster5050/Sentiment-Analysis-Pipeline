@@ -1,77 +1,91 @@
-# 🚀 Robust Text Data Classification Pipeline (Python/Pandas)
+import pandas as pd
+import nltk
+import re
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from tqdm import tqdm
 
-**A complete Extract-Transform-Load (ETL) pipeline designed for high-quality data engineering and automated sentiment classification.**
+# --- 1. EXTRACTION (E) ---
+def load_data(url="https://raw.githubusercontent.com/pycaret/pycaret/master/datasets/amazon.csv"):
+    """
+    Simulates fetching a dataset from an external source.
+    Demonstrates ability to handle remote data sources.
+    """
+    print("--- 1. EXTRACTING DATA ---")
+    try:
+        # Loading a sample dataset of reviews
+        df = pd.read_csv(url).head(1000) 
+        df = df[['reviewText']] 
+        df.columns = ['raw_text']
+        print(f"Successfully loaded {len(df)} rows.")
+        return df
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return pd.DataFrame({'raw_text': []})
 
-This project demonstrates proficiency in building end-to-end data systems, with a core focus on **data cleanliness**—a critical requirement for training stable and unbiased Large Language Models (LLMs).
+# --- 2. TRANSFORMATION (T) ---
+def preprocess_text(text):
+    """
+    Data Normalization: The most critical step for AI training data.
+    """
+    if pd.isna(text) or text is None:
+        return ""
+    
+    # Lowercasing and noise removal
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+    
+    # Tokenization and Stopword removal
+    tokens = word_tokenize(text)
+    stop_words = set(stopwords.words('english'))
+    filtered_tokens = [t for t in tokens if t not in stop_words and len(t) > 1]
+    
+    return " ".join(filtered_tokens)
 
-## 💡 Key Features & Shipd.ai Value
+def analyze_sentiment(df):
+    """
+    Algorithmic Classification: Assigns sentiment labels.
+    """
+    print("\n--- 2. TRANSFORMING DATA (Cleaning & Analysis) ---")
+    
+    # Ensure NLTK resources are available
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
+    nltk.download('vader_lexicon', quiet=True)
+    
+    df = df.dropna(subset=['raw_text'])
+    
+    # Apply cleaning
+    tqdm.pandas(desc="Cleaning Text")
+    df['cleaned_text'] = df['raw_text'].progress_apply(preprocess_text)
+    
+    # Initialize Sentiment Analyzer
+    sia = SentimentIntensityAnalyzer()
+    
+    def get_label(text):
+        score = sia.polarity_scores(text)['compound']
+        if score >= 0.05: return 'Positive'
+        elif score <= -0.05: return 'Negative'
+        else: return 'Neutral'
+    
+    tqdm.pandas(desc="Classifying")
+    df['sentiment_label'] = df['cleaned_text'].progress_apply(get_label)
+    
+    return df
 
-This pipeline proves my ability to handle complex data challenges by addressing two core areas:
+# --- 3. LOAD (L) ---
+def save_data(df, filename="clean_sentiment_data.csv"):
+    """
+    Final Output: Creating a clean, verifiable dataset.
+    """
+    print(f"\n--- 3. LOADING DATA to {filename} ---")
+    df.to_csv(filename, index=False)
+    print("Pipeline Complete. Reviewing results:")
+    print(df[['raw_text', 'sentiment_label']].head())
 
-1.  **Data Quality & Normalization:** Implementing robust functions to handle messy, real-world text, ensuring the final output is fit for machine learning ingestion.
-2.  **Algorithmic Complexity:** Utilizing NLP techniques to derive meaningful features (sentiment) from unstructured data.
-
-## 🛠 Technology Stack
-
-* **Language:** Python
-* **Data Handling:** `pandas` (Crucial for data transformation)
-* **Web Extraction:** `requests`
-* **NLP/Classification:** `nltk` or `scikit-learn` (for basic classification models)
-
----
-
-## ⚙️ Pipeline Architecture (The ETL Process)
-
-The `data_pipeline.py` script executes the following steps:
-
-### 1. **Extraction (E)**
-* Fetches raw, uncleaned text data from a public source (e.g., [State the public API or dataset you used, e.g., "A sample of movie reviews from Kaggle"](https://example.com/data)).
-
-### 2. **Transformation (T) — THE CRITICAL PART**
-
-The core of this project is the cleaning process, ensuring the data is ethical and high-quality:
-
-* **Handling Nulls & Missing Data:** Implementation of a process to safely drop or impute missing values (rows with no text data).
-* **Text Normalization:** Removal of punctuation, conversion of text to lowercase, and removal of common "stopwords" (e.g., 'a', 'the', 'is') using the `nltk` library.
-* **Feature Engineering (Classification):** Applying a [State your chosen method: e.g., "Simple Naive Bayes Model" or "Lexicon-based scoring"] to assign a **Sentiment Label** (Positive, Negative, or Neutral) to each cleaned text entry.
-
-### 3. **Load (L)**
-* Outputs a final, verifiable CSV file (`clean_sentiment_data.csv`) containing the **original text**, the **cleaned text**, and the **final sentiment label**.
-
----
-
-## ⏱ Complexity Analysis
-
-The efficiency of data transformation is crucial.
-
-* **Time Complexity:** The transformation phase runs with a time complexity of approximately $O(N \cdot L)$, where $N$ is the number of text entries and $L$ is the average length of the entries. This is highly efficient for large-scale data ingestion.
-* **Space Complexity:** The space complexity is $O(N \cdot L)$ to store the original and cleaned datasets in memory during processing.
-
-## 🏃 Getting Started
-
-1.  Clone this repository:
-    ```bash
-    git clone [https://github.com/foster5050/Sentiment-Analysis-Pipeline.git](https://github.com/foster5050/Sentiment-Analysis-Pipeline.git)
-    cd Sentiment-Analysis-Pipeline
-    ```
-2.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  Run the pipeline:
-    ```bash
-    python data_pipeline.py
-    ```
-
-***
-
-### **Your Next Immediate Action**
-
-1.  **Create the Repository:** Go to GitHub and create a new public repository named **`Sentiment-Analysis-Pipeline`**.
-2.  **Paste the README:** Paste the draft above into the `README.md` file for that repository.
-3.  **Create `requirements.txt`:** Create a simple file named `requirements.txt` in the same repository and add these lines:
-    ```
-    pandas
-    requests
-    nltk
-    ```
+if __name__ == "__main__":
+    raw_df = load_data()
+    if not raw_df.empty:
+        processed_df = analyze_sentiment(raw_df)
+        save_data(processed_df)
